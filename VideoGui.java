@@ -99,7 +99,7 @@ public class VideoGui {
     JLabel lbIm1;
     BufferedImage imgOne;
     
-    final int BUFFER_SIZE = 30 * 60 * 5;
+    final int BUFFER_SIZE = 30 * 60 * 5 + 1;
     final int WIDTH = 480; // default image width and height
     final int HEIGHT = 270;
 
@@ -314,7 +314,7 @@ public class VideoGui {
         };
         playSound.get().load();
         thread.start();
-        Thread.sleep(500);
+       // Thread.sleep(500);
                 
         play.addActionListener(new ActionListener() {
 
@@ -356,6 +356,8 @@ public class VideoGui {
         
 
         playVideo();
+        play.setText("Done");
+        play.setEnabled(false);
         System.out.println("Done.");
     }
 
