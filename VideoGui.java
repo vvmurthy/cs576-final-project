@@ -1,4 +1,5 @@
 import java.awt.*;
+import java.awt.event.*;
 import java.awt.image.*;
 import java.io.*;
 import javax.swing.*;
@@ -10,6 +11,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
@@ -20,7 +22,7 @@ public class VideoGui {
     public class PlaySound {
         private InputStream waveStream;
         
-        private final int EXTERNAL_BUFFER_SIZE = 10000000; // 3mb
+        private final int EXTERNAL_BUFFER_SIZE = 128000; // 128kb
 
         private SourceDataLine dataLine = null; 
         AudioInputStream audioInputStream = null;
@@ -36,8 +38,7 @@ public class VideoGui {
         LineUnavailableException, IOException{
             InputStream bufferedIn = new BufferedInputStream(this.waveStream);
             audioInputStream = AudioSystem.getAudioInputStream(bufferedIn);
-        
-
+            
             // Obtain the information about the AudioInputStream
             AudioFormat audioFormat = audioInputStream.getFormat();
             Info info = new Info(SourceDataLine.class, audioFormat);
@@ -45,7 +46,21 @@ public class VideoGui {
             // opens the audio channel
             dataLine = (SourceDataLine) AudioSystem.getLine(info);
             dataLine.open(audioFormat, this.EXTERNAL_BUFFER_SIZE);
+
+            // skips bits
+
+            int init = (int)framesToBytes();
+            if(init > 0) {
+                byte[] initBuffer = new byte[init];
+            audioInputStream.read(initBuffer, 0,
+                    initBuffer.length);
+            }
             
+            
+        }
+
+        public void pause(){
+            dataLine.stop();
         }
 
         public void play() throws UnsupportedAudioFileException,
@@ -58,6 +73,7 @@ public class VideoGui {
             byte[] audioBuffer = new byte[this.EXTERNAL_BUFFER_SIZE];
 
             try {
+                
                 while (readBytes != -1) {
                     readBytes = audioInputStream.read(audioBuffer, 0,
                         audioBuffer.length);
@@ -75,6 +91,9 @@ public class VideoGui {
     }
 
     private JButton play;
+    private final long latency = 33; // ms
+    private ImageIcon icon;
+    private boolean isPlaying = false;
     private final Queue<BufferedImage> myQ = new ConcurrentLinkedQueue<BufferedImage>();
     JFrame frame;
     JLabel lbIm1;
@@ -83,6 +102,8 @@ public class VideoGui {
     final int BUFFER_SIZE = 30 * 60 * 5;
     final int WIDTH = 480; // default image width and height
     final int HEIGHT = 270;
+
+    private int framesRead = 0;
 
     private final BufferedImage newImg = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
 
@@ -139,6 +160,68 @@ public class VideoGui {
             ee.printStackTrace();
         }
     }
+    public void playVideo(){
+        long decodeTime = 0;
+        long prevStart = 0;
+        long sleepTime = 0;
+        isPlaying = true;
+        int i = 0;
+        long nextIterLatency = 0;
+        long start = System.currentTimeMillis();
+        while(true){
+            prevStart = start;
+            System.out.println(myQ.size());
+            start = System.currentTimeMillis();
+            if(!isPlaying) {
+                continue;
+            }
+            long decodeIterTime = (start - prevStart - sleepTime);
+             
+            imgOne = myQ.poll();
+            framesRead++;
+            if(imgOne == null || myQ.size() == 0){
+                System.out.println("Invalid image " + myQ.size());
+                break;
+            } 
+            icon.setImage(imgOne);
+            
+            i++;
+            if(i % 3 == 0) {
+                sleepTime = latency - decodeIterTime + 1;
+            } else {
+                sleepTime = latency - decodeIterTime;
+            }
+            
+            frame.repaint();
+            frame.invalidate();
+
+            // correct so the latency takes into account the processing
+            // time of the decoding
+            if(decodeIterTime < latency) {
+                try {
+                    Thread.sleep(sleepTime);
+                } catch (InterruptedException er) {
+                    // dont really care
+                }
+            } else {
+                long framesToToss = (sleepTime * -1) / latency;
+                while(framesToToss > 0) {
+                    myQ.poll();
+                    framesRead++;
+                    framesToToss--;
+                }
+                sleepTime = -1 *( (sleepTime * -1) % latency);
+            }
+        }
+    }
+
+    public long framesToBytes() {
+        double secondsPassed = framesRead / 30.0;
+        double bytes = 48000 * secondsPassed * 16 / 8;
+
+        return Math.round(bytes);
+    }
+
     public void showIms(String[] args) throws Exception {
 
         // Read a parameter from command line
@@ -159,17 +242,11 @@ public class VideoGui {
         RandomAccessFile raf = new RandomAccessFile(file, "r");
         raf.seek(0);
 
-        long latency = 33; // ms
+        
         fillQueue(raf, true);
 
         imgOne = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-        Thread tt = new Thread(){
-            public void run(){
-                fillQueue(raf, false);
-            }
-        };
-        tt.setPriority(Thread.MAX_PRIORITY);
-        //tt.start();
+        
 
         // Use label to display the image
         frame = new JFrame();
@@ -194,36 +271,20 @@ public class VideoGui {
         c.fill = GridBagConstraints.HORIZONTAL;
         c.anchor = GridBagConstraints.CENTER;
         c.weightx = 0.5;
-        c.gridx = 1;
-        c.gridy = 0;
+        c.gridx = 0;
+        c.gridy = 2;
 
-        GridBagConstraints d = new GridBagConstraints();
-        d.fill = GridBagConstraints.HORIZONTAL;
-        d.anchor = GridBagConstraints.CENTER;
-        d.weightx = 0.5;
-        d.gridx = 1;
-        d.gridy = 1;
-
-        GridBagConstraints e = new GridBagConstraints();
-        e.fill = GridBagConstraints.HORIZONTAL;
-        e.anchor = GridBagConstraints.CENTER;
-        e.weightx = 0.5;
-        e.gridx = 2;
-        e.gridy = 0;
-
-        play = new JButton("Play");
-        ImageIcon icon = new ImageIcon(imgOne);
+        play = new JButton("Pause");
+        
+        icon = new ImageIcon(imgOne);
         JLabel orig = new JLabel(icon);
         lbIm1 = new JLabel(new ImageIcon(newImg));
-        JLabel decoded = new JLabel("Decoded");
         JLabel original = new JLabel("Original");
 
         frame.getContentPane().removeAll();
         frame.getContentPane().add(original, a);
         frame.getContentPane().add(orig, b);
-        frame.getContentPane().add(decoded, c);
-        frame.getContentPane().add(lbIm1, d);
-        frame.getContentPane().add(play, e);
+        frame.getContentPane().add(play, c);
 
         frame.pack();
         frame.setVisible(true);
@@ -237,77 +298,64 @@ public class VideoGui {
             return;
         }
 
+
         // initializes the playSound Object
-        final PlaySound playSound = new PlaySound(inputStream);
-        long decodeTime = 0;
-        long prevStart = 0;
-        long sleepTime = 0;
+        final AtomicReference<PlaySound> playSound = new AtomicReference<>();
+        playSound.set(new PlaySound(inputStream));
         
-        int i = 0;
-        long nextIterLatency = 0;
-        playSound.load();
-
-        try{
+        Thread thread = new Thread(){
+            public void run(){
+                try{
+                playSound.get().play();
+                }catch(Exception ee) {
+                    ee.printStackTrace();
+                }
+            }
+        };
+        playSound.get().load();
+        thread.start();
+        Thread.sleep(500);
                 
-                    Thread thread = new Thread(){
-                        public void run(){
-                            try{
-                            playSound.play();
-                            }catch(Exception ee) {
-                                ee.printStackTrace();
+        play.addActionListener(new ActionListener() {
+
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if(isPlaying) {
+                    isPlaying = false;
+                    play.setText("Play");
+                    playSound.get().pause();
+                    thread.stop();
+                } else {
+                    isPlaying = true;
+                    play.setText("Pause");
+                    try {
+                        FileInputStream inputStream = new FileInputStream(args[1]);
+                        
+                        playSound.set(new PlaySound(inputStream));
+        
+                        Thread t = new Thread(){
+                            public void run(){
+                                try{
+                                    playSound.get().play();
+                                }catch(Exception ee) {
+                                    ee.printStackTrace();
+                                }
                             }
-                        }
-                    };
+                        };
+                        playSound.get().load();
+
+                        t.start();
+                    }catch(Exception wee) {
+
+                    }
                     
-
-                    thread.start();
-                   Thread.sleep(500);
                     
-                
-            } catch(Exception eof) {
-                eof.printStackTrace();
-            }
-
-        long start = System.currentTimeMillis();
-        while(true){
-            prevStart = start;
-            start = System.currentTimeMillis();
-            long decodeIterTime = (start - prevStart - sleepTime);
-             
-            imgOne = myQ.poll();
-            if(imgOne == null || myQ.size() == 0){
-                System.out.println("Invalid image " + myQ.size());
-                break;
-            } 
-            icon.setImage(imgOne);
-            System.out.println(myQ.size());
-            i++;
-            if(i % 3 == 0) {
-                sleepTime = latency - decodeIterTime + 1;
-            } else {
-                sleepTime = latency - decodeIterTime;
-            }
-            
-            frame.repaint();
-            frame.invalidate();
-
-            // correct so the latency takes into account the processing
-            // time of the decoding
-            if(decodeIterTime < latency) {
-                try {
-                    Thread.sleep(sleepTime);
-                } catch (InterruptedException er) {
-                    // dont really care
                 }
-            } else {
-                long framesToToss = (sleepTime * -1) / latency;
-                while(framesToToss > 0) {
-                    myQ.poll();
-                    framesToToss--;
-                }
-                sleepTime = -1 *( (sleepTime * -1) % latency);
             }
-        }
+        });
+        
+
+        playVideo();
         System.out.println("Done.");
     }
 
