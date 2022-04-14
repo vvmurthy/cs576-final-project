@@ -7,6 +7,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Queue;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import javax.sound.sampled.AudioFormat;
@@ -201,7 +202,7 @@ public class VideoGui {
             prevStart = start;
             System.out.println(myQ.size());
 
-            original.setText("Original, frame number " + framesRead);
+            
 
             if(framesRead == jumpTimes[0][0]) {
                 
@@ -221,6 +222,7 @@ public class VideoGui {
                 framesRead = jumpTimes[1][1];
                 resume.resume();
             }
+            original.setText("Original, frame number " + framesRead);
             
             start = System.currentTimeMillis();
             if(!isPlaying) {
@@ -276,20 +278,29 @@ public class VideoGui {
     public void showIms(String[] args) throws Exception {
 
         // Read a parameter from command line
-        if (args.length < 2) {
-            System.out.println("Need 2 args: inputVideo inputAudio");
+        if (args.length < 1) {
+            System.out.println("Need 1 arg: num");
             return;
         }
 
-        if(! new File(args[0]).exists()) {
-            System.out.println("image file does not exist");
+        final int num = Integer.parseInt(args[0]);
+
+        final String baseFolder = (num == 1) ? "dataset-001-001/dataset" : "dataset-00" + num + "-00"+ num + "/dataset" + num;
+        final String video = baseFolder + "/Videos/data_test" + num + ".rgb";
+        final String audio = baseFolder + "/Videos/data_test" + num + ".wav";
+        final String dataFile = baseFolder + "/Videos/data_test" + num + ".txt";
+        
+        if(! new File(video).exists()) {
+            System.out.println("video does not exist");
             return;
         }
-        if(! new File(args[1]).exists()) {
-            System.out.println("audio file does not exist");
+
+        if(! new File(audio).exists()) {
+            System.out.println("audio does not exist");
             return;
         }
-        final File file = new File(args[0]);
+
+        final File file = new File(video);
         RandomAccessFile raf = new RandomAccessFile(file, "r");
         raf.seek(0);
 
@@ -343,7 +354,7 @@ public class VideoGui {
         // opens the inputStream
         FileInputStream inputStream;
         try {
-            inputStream = new FileInputStream(args[1]);
+            inputStream = new FileInputStream(audio);
         } catch (FileNotFoundException fe) {
             fe.printStackTrace();
             return;
@@ -372,7 +383,7 @@ public class VideoGui {
             playSound.get().pause();
             play.setText("Pause");
             try {
-                FileInputStream is = new FileInputStream(args[1]);
+                FileInputStream is = new FileInputStream(audio);
                 
                 playSound.set(new PlaySound(is));
 
@@ -409,7 +420,7 @@ public class VideoGui {
         });
         
 
-        int[][] jumpTimes = getAdFrameJumpTimes(new File("dataset-002-002/dataset2/Videos/data_test2.txt"));
+        int[][] jumpTimes = getAdFrameJumpTimes(new File(dataFile));
         playVideo(jumpTimes, resume);
         play.setText("Done");
         play.setEnabled(false);

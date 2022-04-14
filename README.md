@@ -1,5 +1,12 @@
 # How to run
 ```
 javac VideoGui.java
-java -Xmx6G VideoGui dataset-001-001/dataset/Videos/data_test1.rgb dataset-001-001/dataset/Videos/data_test1.wav
+java -Xmx6G VideoGui 1
+java -Xmx6G VideoGui 2
+java -Xmx6G VideoGui 3
 ```
+
+
+
+
+
