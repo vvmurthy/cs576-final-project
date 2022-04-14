@@ -141,7 +141,6 @@ difference between two images, a "previous" image and a "next" image
 """
 def make_data_file(BASE, num):
     sourcefile = BASE + "/Videos/data_test" + num + ".rgb"
-
     brands = [BASE + "/Brand Images/" + x for x in os.listdir(BASE + "/Brand Images") if ".rgb" in x]
     brands = sorted(brands)
 
@@ -211,9 +210,7 @@ def make_data_file(BASE, num):
 
         difference_reads[index // (skip_frame + 1)] = diff_count / (nx.shape[0] * nx.shape[1])
         
-        print(str(index) + " " + str(is_high_diff) + " " + str(diff_count / (nx.shape[0] * nx.shape[1])))
         if is_high_diff:
-            """
             any_high_diff = False
             pr = previous 
             for i in range(len(skips)):
@@ -223,8 +220,10 @@ def make_data_file(BASE, num):
                 any_high_diff = (any_high_diff or is_high_diff)
                 pr = nextt
             if any_high_diff:
-            """
-            indices_high_diff.append(index)
+                indices_high_diff.append(index)
+            is_high_diff = any_high_diff
+        print(str(index) + " " + str(is_high_diff) + " " + str(diff_count / (nx.shape[0] * nx.shape[1])))
+        
 
         delta = diff_count / (nx.shape[0] * nx.shape[1])
 

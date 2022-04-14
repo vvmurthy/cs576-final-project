@@ -19,6 +19,9 @@ import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.sound.sampled.DataLine.Info;
 
 public class VideoGui {
+    public interface OnPlayResume {
+        public void resume();
+    }
     public class PlaySound {
         private InputStream waveStream;
         
@@ -102,6 +105,7 @@ public class VideoGui {
     final int BUFFER_SIZE = 30 * 60 * 5 + 1;
     final int WIDTH = 480; // default image width and height
     final int HEIGHT = 270;
+    private JLabel original;
 
     private int framesRead = 0;
 
@@ -144,8 +148,33 @@ public class VideoGui {
         } 
     }
 
+    public int[][] getAdFrameJumpTimes(File file) {
+        int[][] times = new int[2][2];
+        int index = 0;
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+               if(line.contains(":") && line.contains("ad")) {
+                   String[] split = line.split("-");
+                   int firstNum = Integer.parseInt(split[0]);
+
+                   int secondNum = Integer.parseInt(split[1].split(":")[0]);
+
+                   if(index < times.length) {
+                       times[index][0] = firstNum;
+                       times[index][1] = secondNum;
+                   }
+                   index++;
+               }
+            }
+        }catch(Exception e) {
+            // ignore
+        }
+
+        return times;
+    }
+
     public void fillQueue(RandomAccessFile raf, boolean breakWhenDone) {
-        
         try{
             while(true) {
                 if(myQ.size() < BUFFER_SIZE) {
@@ -160,7 +189,7 @@ public class VideoGui {
             ee.printStackTrace();
         }
     }
-    public void playVideo(){
+    public void playVideo(int[][] jumpTimes, OnPlayResume resume){
         long decodeTime = 0;
         long prevStart = 0;
         long sleepTime = 0;
@@ -171,6 +200,28 @@ public class VideoGui {
         while(true){
             prevStart = start;
             System.out.println(myQ.size());
+
+            original.setText("Original, frame number " + framesRead);
+
+            if(framesRead == jumpTimes[0][0]) {
+                
+                long framesToToss = jumpTimes[0][1] - framesRead;
+                while(framesToToss > 0) {
+                    myQ.poll();
+                    framesToToss--;
+                }
+                framesRead = jumpTimes[0][1];
+                resume.resume();
+            } else if(framesRead == jumpTimes[1][0]) {
+                long framesToToss = jumpTimes[1][1] - framesRead;
+                while(framesToToss > 0) {
+                    myQ.poll();
+                    framesToToss--;
+                }
+                framesRead = jumpTimes[1][1];
+                resume.resume();
+            }
+            
             start = System.currentTimeMillis();
             if(!isPlaying) {
                 continue;
@@ -279,7 +330,7 @@ public class VideoGui {
         icon = new ImageIcon(imgOne);
         JLabel orig = new JLabel(icon);
         lbIm1 = new JLabel(new ImageIcon(newImg));
-        JLabel original = new JLabel("Original");
+        original = new JLabel("Original, frame number " + "0");
 
         frame.getContentPane().removeAll();
         frame.getContentPane().add(original, a);
@@ -306,7 +357,7 @@ public class VideoGui {
         Thread thread = new Thread(){
             public void run(){
                 try{
-                playSound.get().play();
+                    playSound.get().play();
                 }catch(Exception ee) {
                     ee.printStackTrace();
                 }
@@ -315,6 +366,32 @@ public class VideoGui {
         playSound.get().load();
         thread.start();
        // Thread.sleep(500);
+
+        OnPlayResume resume = () -> {
+            isPlaying = true;
+            playSound.get().pause();
+            play.setText("Pause");
+            try {
+                FileInputStream is = new FileInputStream(args[1]);
+                
+                playSound.set(new PlaySound(is));
+
+                Thread t = new Thread(){
+                    public void run(){
+                        try{
+                            playSound.get().play();
+                        }catch(Exception ee) {
+                            ee.printStackTrace();
+                        }
+                    }
+                };
+                playSound.get().load();
+
+                t.start();
+            }catch(Exception wee) {
+
+            }
+        };
                 
         play.addActionListener(new ActionListener() {
 
@@ -326,36 +403,14 @@ public class VideoGui {
                     playSound.get().pause();
                     thread.stop();
                 } else {
-                    isPlaying = true;
-                    play.setText("Pause");
-                    try {
-                        FileInputStream inputStream = new FileInputStream(args[1]);
-                        
-                        playSound.set(new PlaySound(inputStream));
-        
-                        Thread t = new Thread(){
-                            public void run(){
-                                try{
-                                    playSound.get().play();
-                                }catch(Exception ee) {
-                                    ee.printStackTrace();
-                                }
-                            }
-                        };
-                        playSound.get().load();
-
-                        t.start();
-                    }catch(Exception wee) {
-
-                    }
-                    
-                    
+                    resume.resume();
                 }
             }
         });
         
 
-        playVideo();
+        int[][] jumpTimes = getAdFrameJumpTimes(new File("dataset-002-002/dataset2/Videos/data_test2.txt"));
+        playVideo(jumpTimes, resume);
         play.setText("Done");
         play.setEnabled(false);
         System.out.println("Done.");
