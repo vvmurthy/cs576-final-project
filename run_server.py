@@ -9,3 +9,10 @@ def post_call():
         num = request.form['num']
         make_data_file(base, num)
     return "Success"
+
+for num in ["3"]:
+    if num == "1":
+        base = "dataset-001-001/dataset"
+    else:
+        base = "dataset-00" + num + "-00" + num + "/dataset" + num 
+    make_data_file(base, num)

@@ -132,7 +132,12 @@ def find_closest_match(segment, prev_frame, segment_i, segment_j):
     return min_error_segment
 
 """
-Methods to create "data" file on server 
+
+Main function of this file, designed to create a "data" file summarizing the 
+scene cuts between images in the video
+
+* does this through the diff_count method, which determines the segment-wise
+difference between two images, a "previous" image and a "next" image
 """
 def make_data_file(BASE, num):
     sourcefile = BASE + "/Videos/data_test" + num + ".rgb"
@@ -165,12 +170,33 @@ def make_data_file(BASE, num):
     difference_reads = np.zeros((NUM_FRAMES // (skip_frame + 1)), dtype=np.float32)
     while index < (NUM_FRAMES - 2):
 
+        skips = []
         if skip_frame > 0:
             has_skipped = 0
             while has_skipped < skip_frame and index < (NUM_FRAMES - 2):
                 nx = get_next_frame(fb)
+                skips.append(nx)
                 has_skipped += 1
                 index += 1
+        
+        def get_diff_count(previous, nx):
+            xx = np.zeros(nx.shape, dtype=np.uint8)
+            for i in range(SEGMENTS_VERTICAL):
+                for j in range(SEGMENTS_HORIZONTAL):
+                    segment_height =int( nx.shape[0] / SEGMENTS_VERTICAL)
+                    segment_width = int(nx.shape[1] / SEGMENTS_HORIZONTAL)
+                    segment = nx[i * segment_height : i * segment_height + segment_height, j * segment_width : j * segment_width + segment_width]
+                    findd = find_closest_match(segment, previous, i, j)
+                    xx[i * segment_height : i * segment_height + segment_height, j * segment_width : j * segment_width + segment_width] = findd
+                
+            diff  = np.abs(nx - xx)
+            diff[diff < THRESHOLD] = 0
+            diff[diff > THRESHOLD] = 255
+            diff_count = np.count_nonzero(diff)
+            return diff_count
+        
+        def is_high_difference(diff_count, nx):
+            return diff_count > PERCENT * nx.shape[0] * nx.shape[1]
     
 
         if index >= (NUM_FRAMES - skip_frame):
@@ -178,30 +204,27 @@ def make_data_file(BASE, num):
         
         nx = get_next_frame(fb)
         index+=1
-        xx = np.zeros(nx.shape, dtype=np.uint8)
-    
-        for i in range(SEGMENTS_VERTICAL):
-            for j in range(SEGMENTS_HORIZONTAL):
-                segment_height =int( nx.shape[0] / SEGMENTS_VERTICAL)
-                segment_width = int(nx.shape[1] / SEGMENTS_HORIZONTAL)
-                segment = nx[i * segment_height : i * segment_height + segment_height, j * segment_width : j * segment_width + segment_width]
-                findd = find_closest_match(segment, previous, i, j)
-                xx[i * segment_height : i * segment_height + segment_height, j * segment_width : j * segment_width + segment_width] = findd
-            
-        diff  = np.abs(nx - xx)
-    
-        cv2.imwrite("temp"  + num + "/" + str(index) + ".png", diff)
-        
-        diff[diff < THRESHOLD] = 0
-        diff[diff > THRESHOLD] = 255
-        
-        diff_count = np.count_nonzero(diff)
+        skips.append(nx)
+
+        diff_count = get_diff_count(previous, nx)
+        is_high_diff = is_high_difference(diff_count, nx)
+
         difference_reads[index // (skip_frame + 1)] = diff_count / (nx.shape[0] * nx.shape[1])
-        is_high_difference = diff_count > PERCENT * nx.shape[0] * nx.shape[1]
-        print(str(index) + " " + str(is_high_difference) + " " + str(diff_count / (nx.shape[0] * nx.shape[1])))
-        if is_high_difference:
+        
+        print(str(index) + " " + str(is_high_diff) + " " + str(diff_count / (nx.shape[0] * nx.shape[1])))
+        if is_high_diff:
+            """
+            any_high_diff = False
+            pr = previous 
+            for i in range(len(skips)):
+                nextt = skips[0]
+                diff_count = get_diff_count(previous, nx)
+                is_high_diff = is_high_difference(diff_count, nx)
+                any_high_diff = (any_high_diff or is_high_diff)
+                pr = nextt
+            if any_high_diff:
+            """
             indices_high_diff.append(index)
-    
 
         delta = diff_count / (nx.shape[0] * nx.shape[1])
 
@@ -250,8 +273,8 @@ def make_data_file(BASE, num):
                 scene_type = (line.split(":")[-1]).strip()
                 compress_down_scenes.append((first_num, second_num, scene_type))
 
-    compress_copy = [compress_down_scenes[0],]
-    i = 1
+    compress_copy = []
+    i = 0
     detected_ads = 0
     while i < len(compress_down_scenes):
         if i < len(compress_down_scenes) - 1 and compress_down_scenes[i][2] == "ad" and compress_down_scenes[i+1][2] == "ad":
@@ -259,7 +282,9 @@ def make_data_file(BASE, num):
             while new_i < len(compress_down_scenes) and compress_down_scenes[new_i][2] == "ad":
                 new_i += 1
             frames_in_ad = compress_down_scenes[new_i - 1][1] - compress_down_scenes[i][0]
-            if frames_in_ad < 390:
+            first_ad_short = (frames_in_ad < 415 and i == 0 and compress_down_scenes[i][2] == "ad" and compress_down_scenes[i+1][2] == "scene")
+            
+            if frames_in_ad < 390 or first_ad_short:
                 new_compress = (compress_down_scenes[i][0], compress_down_scenes[new_i - 1][1], "scene")
             elif frames_in_ad > 1000:
                 new_compress = (compress_down_scenes[i][0], compress_down_scenes[i][1], "scene")
@@ -273,7 +298,11 @@ def make_data_file(BASE, num):
         else:
             frames_in_ad = compress_down_scenes[i][1] - compress_down_scenes[i][0]
             
-            if (frames_in_ad < 390 and compress_down_scenes[i][2] == "ad") or (frames_in_ad < 400 and compress_down_scenes[i][2] == "ad" and detected_ads >= 2): 
+            first_ad_short = (frames_in_ad < 415 and i == 0 and compress_down_scenes[i][2] == "ad" and compress_down_scenes[i+1][2] == "scene")
+            too_many_ads = (frames_in_ad < 400 and compress_down_scenes[i][2] == "ad" and detected_ads >= 2)
+            too_short = (frames_in_ad < 390 and compress_down_scenes[i][2] == "ad")
+
+            if too_short or too_many_ads or first_ad_short: 
                 compress_copy.append((compress_down_scenes[i][0], compress_down_scenes[i][1], "scene"))
             else:
                 compress_copy.append(compress_down_scenes[i])
