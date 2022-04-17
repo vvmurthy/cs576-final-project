@@ -212,15 +212,20 @@ def make_data_file(BASE, num):
         
         if is_high_diff:
             any_high_diff = False
-            pr = previous 
+            pr = np.copy(previous) 
+            latest_index = index - len(skips)
+            high_diff_last = latest_index
             for i in range(len(skips)):
-                nextt = skips[0]
-                diff_count = get_diff_count(previous, nx)
-                is_high_diff = is_high_difference(diff_count, nx)
+                nextt = skips[i]
+                diff_count = get_diff_count(pr, nextt)
+                is_high_diff = is_high_difference(diff_count, nextt)
+                if is_high_diff:
+                    high_diff_last = latest_index
                 any_high_diff = (any_high_diff or is_high_diff)
                 pr = nextt
+                latest_index += 1
             if any_high_diff:
-                indices_high_diff.append(index)
+                indices_high_diff.append(high_diff_last)
             is_high_diff = any_high_diff
         print(str(index) + " " + str(is_high_diff) + " " + str(diff_count / (nx.shape[0] * nx.shape[1])))
         
