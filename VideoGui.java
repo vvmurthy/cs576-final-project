@@ -149,32 +149,6 @@ public class VideoGui {
         } 
     }
 
-    public int[][] getAdFrameJumpTimes(File file) {
-        int[][] times = new int[2][2];
-        int index = 0;
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-               if(line.contains(":") && line.contains("ad")) {
-                   String[] split = line.split("-");
-                   int firstNum = Integer.parseInt(split[0]);
-
-                   int secondNum = Integer.parseInt(split[1].split(":")[0]);
-
-                   if(index < times.length) {
-                       times[index][0] = firstNum;
-                       times[index][1] = secondNum;
-                   }
-                   index++;
-               }
-            }
-        }catch(Exception e) {
-            // ignore
-        }
-
-        return times;
-    }
-
     public void fillQueue(RandomAccessFile raf, boolean breakWhenDone) {
         try{
             while(true) {
@@ -190,7 +164,7 @@ public class VideoGui {
             ee.printStackTrace();
         }
     }
-    public void playVideo(int[][] jumpTimes, OnPlayResume resume){
+    public void playVideo(OnPlayResume resume){
         long decodeTime = 0;
         long prevStart = 0;
         long sleepTime = 0;
@@ -201,27 +175,6 @@ public class VideoGui {
         while(true){
             prevStart = start;
             System.out.println(myQ.size());
-
-            
-
-            if(framesRead == jumpTimes[0][0]) {
-                
-                long framesToToss = jumpTimes[0][1] - framesRead;
-                while(framesToToss > 0) {
-                    myQ.poll();
-                    framesToToss--;
-                }
-                framesRead = jumpTimes[0][1];
-                resume.resume();
-            } else if(framesRead == jumpTimes[1][0]) {
-                long framesToToss = jumpTimes[1][1] - framesRead;
-                while(framesToToss > 0) {
-                    myQ.poll();
-                    framesToToss--;
-                }
-                framesRead = jumpTimes[1][1];
-                resume.resume();
-            }
             original.setText("Original, frame number " + framesRead);
             
             start = System.currentTimeMillis();
@@ -278,17 +231,12 @@ public class VideoGui {
     public void showIms(String[] args) throws Exception {
 
         // Read a parameter from command line
-        if (args.length < 1) {
-            System.out.println("Need 1 arg: num");
+        if (args.length < 2) {
+            System.out.println("Need 2 args: video audio");
             return;
         }
-
-        final int num = Integer.parseInt(args[0]);
-
-        final String baseFolder = (num == 1) ? "dataset-001-001/dataset" : "dataset-00" + num + "-00"+ num + "/dataset" + num;
-        final String video = baseFolder + "/Videos/data_test" + num + ".rgb";
-        final String audio = baseFolder + "/Videos/data_test" + num + ".wav";
-        final String dataFile = baseFolder + "/Videos/data_test" + num + ".txt";
+        final String video = args[0];
+        final String audio = args[1];
         
         if(! new File(video).exists()) {
             System.out.println("video does not exist");
@@ -419,9 +367,7 @@ public class VideoGui {
             }
         });
         
-
-        int[][] jumpTimes = getAdFrameJumpTimes(new File(dataFile));
-        playVideo(jumpTimes, resume);
+        playVideo(resume);
         play.setText("Done");
         play.setEnabled(false);
         System.out.println("Done.");

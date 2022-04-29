@@ -3,6 +3,7 @@ import cv2
 import sys 
 import os
 import io
+import wave
 import matplotlib
 import matplotlib.pyplot as plt
 from os.path import exists
@@ -36,7 +37,7 @@ def get_next_frame(fb):
 
 def make_video(BASE):
     sourcefile = BASE + "/Videos/data_test" + num + ".rgb"
-    audiofile = BASE + "/Videos/data_test" + num + ".rgb"
+    audiofile = BASE + "/Videos/data_test" + num + ".wav"
     out_file = BASE + "/Videos/data_test_modified" + num + ".rgb"
     out_audio = BASE + "/Videos/data_test_modified" + num + ".wav"
     output_file = BASE + "/Videos/data_test" + num + ".txt"
@@ -61,16 +62,21 @@ def make_video(BASE):
     fi  = io.FileIO(video_file.fileno())
     fb = io.BufferedReader(fi)
 
-    audio_file = open(audiofile, 'rb')
+    audio_file = wave.open(audiofile, 'rb')
 
 
     rgb_out = open(out_file, 'wb')
-    audio_out = open(out_audio, 'wb')
+    
+
+    audio_out = wave.open(out_audio, 'wb')
+    audio_out.setnchannels(1)
+    audio_out.setsampwidth(2)
+    audio_out.setframerate(AUDIO_FRAME_RATE)
     for i in range(NUM_FRAMES):
         in_ad_1 = i >= ad_1[0] and i <= ad_1[1] 
         in_ad_2 = i >= ad_2[0] and i <= ad_2[1] 
         frame = get_next_frame(fb)
-        frame_audio = audio_file.read(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * BYTES_PER_FRAME_AUDIO)
+        frame_audio = audio_file.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE)
         
         if in_ad_1 or in_ad_2:
             continue
@@ -81,7 +87,7 @@ def make_video(BASE):
         rgb_out.write(r.tobytes())
         rgb_out.write(g.tobytes())
         rgb_out.write(b.tobytes())
-        audio_out.write(frame_audio)
+        audio_out.writeframes(frame_audio)
 
 for num in ["1", "2", "3"]:
     base = "dataset-00" + num + "-00" + num + "/dataset"
