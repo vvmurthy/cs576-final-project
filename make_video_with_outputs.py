@@ -3,6 +3,7 @@ import cv2
 import sys 
 import os
 import io
+import json
 import wave
 import matplotlib
 import matplotlib.pyplot as plt
@@ -69,6 +70,7 @@ def retrieve_formatted():
                 
                 if len(frame_preds) > 0:
                     predictions_formatted[video_num][frame_num] = frame_preds
+    return predictions_formatted
 
 def get_next_frame(fb):
     r_frame = fb.read(WIDTH * HEIGHT)
