@@ -80,9 +80,6 @@ def retrieve_formatted(hashh):
                     
                     frame_preds.append([displays[i], boxes[i]])
                 
-                if not video_num in predictions_formatted:
-                    predictions_formatted[hash_vid] = {}
-                
                 if len(frame_preds) > 0:
                     predictions_formatted[hash_vid][frame_num] = frame_preds
     return predictions_formatted
@@ -102,9 +99,11 @@ def get_next_frame(fb):
     return full_frame
 
 def overlay_predictions(frame, preds):
+    logo_name = ""
     for pr in preds:
         box = pr[1]
         disp = pr[0]
+        logo_name = disp
         x = int(box[0] * WIDTH)
         y = int(box[2] * HEIGHT)
         x1 = int(box[1] * WIDTH)
@@ -114,7 +113,7 @@ def overlay_predictions(frame, preds):
         if disp.lower() == "nflnfl":
             display_text = "nfl"
         cv2.putText(frame, display_text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
-
+    return disp
 
 def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted, hashh):
     
@@ -158,15 +157,15 @@ def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted
         frame = get_next_frame(fb)
         for delta in range(0, LOOK_BACK_PREDS_FRAME + 1):
             if((i - delta) in predictions_formatted[hashh]):
-                prev_logo_name = predictions_formatted[hashh][i-delta][0]
-                overlay_predictions(frame, predictions_formatted[hashh][i-delta])
+                prev_logo_name = overlay_predictions(frame, predictions_formatted[hashh][i-delta])
         frame_audio = audio_file.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE)
         
         if in_ad_1 or in_ad_2:
-            print(prev_logo_name)
             if processed_ad_1 and in_ad_1:
+                i += 1
                 continue
             if processed_ad_2 and in_ad_2:
+                i += 1
                 continue
             
             if in_ad_1:
@@ -175,13 +174,15 @@ def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted
                 processed_ad_2 = True
 
             # add in the ad content
-            ad_file = brands_to_ads[prev_logo_name]
+            ad_file = brands_to_ads[prev_logo_name.lower()]
             video_file_ad = open(ad_file + ".rgb", 'rb')
+            size = os.path.getsize(ad_file + ".rgb") 
+            num_frames = size // (HEIGHT * WIDTH * 3) - 1
             fi_ad  = io.FileIO(video_file_ad.fileno())
             fb_ad = io.BufferedReader(fi_ad)
             frame_ad = get_next_frame(fb_ad)
 
-            for qr in range(15 * VIDEO_FRAME_RATE):
+            for qr in range(num_frames):
                 r = np.copy(frame_ad[:, :, 0])
                 g = np.copy(frame_ad[:, :, 1])
                 b = np.copy(frame_ad[:, :, 2])
@@ -191,7 +192,7 @@ def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted
                 rgb_out.write(b.tobytes())
 
             ad_audio = wave.open(ad_file + ".wav", 'rb')
-            ad_all_audio = audio_file.readframes(AUDIO_FRAME_RATE * 15) # 15s
+            ad_all_audio = audio_file.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * num_frames) 
             audio_out.writeframes(ad_all_audio)
             i += 1
             continue
