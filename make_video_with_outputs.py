@@ -117,7 +117,7 @@ def overlay_predictions(frame, preds):
 
 def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted, hashh):
     
-    data_file = "temp.txt"
+    data_file = hashh + ".txt"
 
     ad_1 = []
     ad_2 = []
@@ -167,6 +167,9 @@ def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted
             if processed_ad_2 and in_ad_2:
                 i += 1
                 continue
+            if prev_logo_name == "":
+                i += 1
+                continue
             
             if in_ad_1:
                 processed_ad_1 = True
@@ -180,9 +183,9 @@ def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted
             num_frames = size // (HEIGHT * WIDTH * 3) - 1
             fi_ad  = io.FileIO(video_file_ad.fileno())
             fb_ad = io.BufferedReader(fi_ad)
-            frame_ad = get_next_frame(fb_ad)
-
+        
             for qr in range(num_frames):
+                frame_ad = get_next_frame(fb_ad)
                 r = np.copy(frame_ad[:, :, 0])
                 g = np.copy(frame_ad[:, :, 1])
                 b = np.copy(frame_ad[:, :, 2])
@@ -192,7 +195,7 @@ def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted
                 rgb_out.write(b.tobytes())
 
             ad_audio = wave.open(ad_file + ".wav", 'rb')
-            ad_all_audio = audio_file.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * num_frames) 
+            ad_all_audio = ad_audio.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * num_frames) 
             audio_out.writeframes(ad_all_audio)
             i += 1
             continue

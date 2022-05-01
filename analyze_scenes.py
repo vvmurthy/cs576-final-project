@@ -6,21 +6,38 @@ import io
 import hashlib
 import matplotlib
 import matplotlib.pyplot as plt
-from os.path import exists
+from os.path import exists as failed_precheck
 
-# video 1 2400 -> 2900 or so , 5500 -> 6000
-# video 2 -> 0-452, 6000-6452
-# video 3 -> the middle, the end
+
+
+
+
+
+
+
+
+"""
+ANALYZE SCENES
+
+Things to go over
+* skip frames
+* segment difference (fast motion)
+* normalization of differences
+* compression to "scenes" and "ads"
+"""
+
+
 WIDTH = 480
 HEIGHT = 270
 NUM_FRAMES = 30 * 60 * 5
 skip_frame = 3 # process every 4th frame
 
+# Segments to split image into
 SEGMENTS_HORIZONTAL = 8
 SEGMENTS_VERTICAL = 4
 
-THRESHOLD = 50
-PERCENT = 0.25
+THRESHOLD = 50 # 50 pix (out of possible 255) delta between pixels
+PERCENT = 0.25 # 25% of pixels must have THRESHOLD delta between frames
 
 def get_video_hash(sourcefile):
     md5_hash = hashlib.md5()
@@ -52,6 +69,9 @@ def get_ad_image(fl):
 
 
 def create_rgb_hist(image):
+    """
+    Not used :( failed attempt to do histogram for logo detection
+    """
     BINS = 16
     NORM_IMAGE_PIXELS = 1000000
     
@@ -155,7 +175,7 @@ def make_data_file(sourcefile, hashh):
     output_file = "temp.txt"
     secondary_cached_output = hashh + ".txt"
 
-    if exists(secondary_cached_output):
+    if failed_precheck(secondary_cached_output):
         return True
 
     video_file = open(sourcefile, 'rb')
