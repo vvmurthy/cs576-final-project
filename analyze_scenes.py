@@ -3,6 +3,7 @@ import cv2
 import sys 
 import os
 import io
+import hashlib
 import matplotlib
 import matplotlib.pyplot as plt
 from os.path import exists
@@ -20,6 +21,17 @@ SEGMENTS_VERTICAL = 4
 
 THRESHOLD = 50
 PERCENT = 0.25
+
+def get_video_hash(sourcefile):
+    md5_hash = hashlib.md5()
+
+    digest = ""
+    with open(sourcefile, "rb") as a_file:
+        content = a_file.read()
+        md5_hash.update(content)
+
+        digest = md5_hash.hexdigest()
+    return digest
 
 def get_ad_image(fl):
     video_file = open(fl, 'rb')
@@ -139,22 +151,12 @@ scene cuts between images in the video
 * does this through the diff_count method, which determines the segment-wise
 difference between two images, a "previous" image and a "next" image
 """
-def make_data_file(BASE, num):
-    sourcefile = BASE + "/Videos/data_test" + num + ".rgb"
-    brands = [BASE + "/Brand Images/" + x for x in os.listdir(BASE + "/Brand Images") if ".rgb" in x]
-    brands = sorted(brands)
+def make_data_file(sourcefile, hashh):
+    output_file = "temp.txt"
+    secondary_cached_output = hashh + ".txt"
 
-    output_file = BASE + "/Videos/data_test" + num + ".txt"
-    if exists(output_file):
+    if exists(secondary_cached_output):
         return True
-
-    assert len(brands) == 2
-    brand_1 = get_ad_image(brands[0])
-    brand_2 = get_ad_image(brands[1])
-    brand_1_cropped = get_cropped_brand(brand_1)
-    brand_2_cropped = get_cropped_brand(brand_2)
-
-    hist = create_rgb_hist(brand_1_cropped)
 
     video_file = open(sourcefile, 'rb')
     fi  = io.FileIO(video_file.fileno())
@@ -250,8 +252,6 @@ def make_data_file(BASE, num):
             indices_high_diff_normed.append(i * (skip_frame + 1))
 
     indices_high_diff_normed.append(NUM_FRAMES)
-    plt.plot(indices, difference_reads)
-    plt.savefig('save-normed' +num  + '.png')
 
     with open(output_file, 'w') as f:
 
@@ -315,5 +315,7 @@ def make_data_file(BASE, num):
             i += 1
     compress_copy = [str(x[0]) + "-" + str(x[1]) + ": " + x[2] + "\n" for x in compress_copy]
     with open(output_file, 'w') as f:
+        f.writelines(compress_copy)
+    with open(secondary_cached_output, 'w') as f:
         f.writelines(compress_copy)
     return True

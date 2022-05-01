@@ -57,13 +57,12 @@ for num in ["1", "2", "3"]:
     i = 0
     try:
         while i < NUM_FRAMES:
-            print(i)
             for _ in range(SKIP_FRAME):
                 if i < NUM_FRAMES:
                     get_next_frame(fb)
                     i += 1
 
-            if files_in_folder >= 480:
+            if files_in_folder >= 10000:
                 index += 1
                 files_in_folder = 0
                 dirr = "temp_images" + str(index) + "/"
@@ -79,9 +78,9 @@ for num in ["1", "2", "3"]:
             in_vid_2 = (num == "2") and ((i >= ad_2_1[0] and i <= ad_2_1[1]) or (i >= ad_2_2[0] and i <= ad_2_2[1]))
             in_vid_3 = (num == "3") and ((i >= ad_3_1[0] and i <= ad_3_1[1]) or (i >= ad_3_2[0] and i <= ad_3_2[1]))
 
-            if in_vid_1 or in_vid_1 or in_vid_3:
+            if in_vid_1 or in_vid_2 or in_vid_3:
                 assert cv2.imwrite(dirr + fll, frame)
-                filename = "gs://lolcatz1point0/" + fll
+                filename = "gs://s2022-cs576-bucket/" + fll
                 lnn = "{\"content\": \"" + filename + "\", \"mimeType\": \"image/png\"}"
                 lines.append(lnn + "\n")
                 files_in_folder += 1
