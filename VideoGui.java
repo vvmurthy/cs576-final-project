@@ -103,7 +103,7 @@ public class VideoGui {
     JLabel lbIm1;
     BufferedImage imgOne;
     
-    final int BUFFER_SIZE = 30 * 60 * 5 + 1;
+    int BUFFER_SIZE;
     final int WIDTH = 480; // default image width and height
     final int HEIGHT = 270;
     private JLabel original;
@@ -142,6 +142,7 @@ public class VideoGui {
 
     public void readSingleImage(RandomAccessFile raf) throws Exception{
         if(myQ.size() < BUFFER_SIZE) {
+            System.out.println(myQ.size());
             BufferedImage img = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
             readFrameRgb(WIDTH, HEIGHT, raf, img);
             myQ.add(img);
@@ -164,7 +165,7 @@ public class VideoGui {
             ee.printStackTrace();
         }
     }
-    public void playVideo(OnPlayResume resume){
+    public void playVideo(){
         long decodeTime = 0;
         long prevStart = 0;
         long sleepTime = 0;
@@ -249,6 +250,7 @@ public class VideoGui {
         }
 
         final File file = new File(video);
+        BUFFER_SIZE = (int)(file.length() / (HEIGHT * WIDTH * 3)) + 1;
         RandomAccessFile raf = new RandomAccessFile(file, "r");
         raf.seek(0);
 
@@ -324,10 +326,9 @@ public class VideoGui {
         };
         playSound.get().load();
         thread.start();
-       // Thread.sleep(500);
+        Thread.sleep(50);
 
         OnPlayResume resume = () -> {
-            isPlaying = true;
             playSound.get().pause();
             play.setText("Pause");
             try {
@@ -347,6 +348,9 @@ public class VideoGui {
                 playSound.get().load();
 
                 t.start();
+                Thread.sleep(50);
+                isPlaying = true;
+
             }catch(Exception wee) {
 
             }
@@ -367,7 +371,7 @@ public class VideoGui {
             }
         });
         
-        playVideo(resume);
+        playVideo();
         play.setText("Done");
         play.setEnabled(false);
         System.out.println("Done.");
