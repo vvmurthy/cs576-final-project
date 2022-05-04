@@ -307,27 +307,45 @@ def make_data_file(sourcefile, hashh):
                 new_i += 1
             frames_in_ad = compress_down_scenes[new_i - 1][1] - compress_down_scenes[i][0]
             first_ad_short = (frames_in_ad < 415 and i == 0 and compress_down_scenes[i][2] == "ad" and compress_down_scenes[i+1][2] == "scene")
-            
-            if frames_in_ad < 390 or first_ad_short:
+            too_many_ads = detected_ads > 3
+
+            # if you compress multiple ads or they are too short
+            # then this is probably a cut within a scene
+            if frames_in_ad < 390 or first_ad_short or too_many_ads:
                 new_compress = (compress_down_scenes[i][0], compress_down_scenes[new_i - 1][1], "scene")
-            elif frames_in_ad > 1000:
+            
+            # if this ad is too long, and the first cut is a long scene (comparable to ad length)
+            # then it is probably an ad on its own
+            elif frames_in_ad > 1000 and (compress_down_scenes[i][1] - compress_down_scenes[i][0] > 410):
                 new_compress = (compress_down_scenes[i][0], compress_down_scenes[i][1], "scene")
                 compress_copy.append(new_compress)
                 new_compress = (compress_down_scenes[i+1][0], compress_down_scenes[new_i - 1][1], "ad")
+            
+            # if the compressed ad is too long but the first cut is shorter, just do a 50-50 split as a heuristic
+            elif frames_in_ad > 1000:
+                new_compress = (compress_down_scenes[i][0], compress_down_scenes[i + 1][1], "scene")
+                compress_copy.append(new_compress)
+                new_compress = (compress_down_scenes[i+2][0], compress_down_scenes[new_i - 1][1], "ad")
+            
+            # otherwise, add the compression as is
             else:
                 new_compress = (compress_down_scenes[i][0], compress_down_scenes[new_i - 1][1], "ad")
             compress_copy.append(new_compress)
             detected_ads += 1
             i = new_i
         else:
+            # in the event there is no need for an ad compression, do this path
             frames_in_ad = compress_down_scenes[i][1] - compress_down_scenes[i][0]
             
             first_ad_short = (frames_in_ad < 415 and i == 0 and compress_down_scenes[i][2] == "ad" and compress_down_scenes[i+1][2] == "scene")
             too_many_ads = (frames_in_ad < 400 and compress_down_scenes[i][2] == "ad" and detected_ads >= 2)
             too_short = (frames_in_ad < 390 and compress_down_scenes[i][2] == "ad")
 
+            # just fail ad processing for a single ad if any of these conditions are true
             if too_short or too_many_ads or first_ad_short: 
                 compress_copy.append((compress_down_scenes[i][0], compress_down_scenes[i][1], "scene"))
+            
+            # otherwise add to dataset as usual
             else:
                 compress_copy.append(compress_down_scenes[i])
             if compress_down_scenes[i][2] == "ad":
