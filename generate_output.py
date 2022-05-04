@@ -161,6 +161,7 @@ def generate_final_video(inputVideo, inputAudio, outputVideo, outputAudio, predi
     ad2Added = False
     ad3Added = False
     detectedLogo = ""
+    adsdetected = []
 
     while i < NUM_FRAMES:
         print(i)
@@ -199,21 +200,26 @@ def generate_final_video(inputVideo, inputAudio, outputVideo, outputAudio, predi
             elif ad3:
                 ad3Added = True
 
-            adVideoFile = open(logoAd[detectedLogo] + ".rgb", 'rb')
-            size = os.path.getsize(logoAd[detectedLogo] + ".rgb") 
-            adVideoFrams = size // (HEIGHT * WIDTH * 3) - 1
-            adVideoFileIO  = io.FileIO(adVideoFile.fileno())
-            adVideoFileBuffer = io.BufferedReader(adVideoFileIO)
-        
-            for f in range(adVideoFrams):
-                frameInAd = get_next_frame(adVideoFileBuffer)
-                write_next_frame(frameInAd, outputVideoRGB)
+            if detectedLogo not in adsdetected :
+                adVideoFile = open(logoAd[detectedLogo] + ".rgb", 'rb')
+                size = os.path.getsize(logoAd[detectedLogo] + ".rgb") 
+                adVideoFrams = size // (HEIGHT * WIDTH * 3) - 1
+                adVideoFileIO  = io.FileIO(adVideoFile.fileno())
+                adVideoFileBuffer = io.BufferedReader(adVideoFileIO)
+                adAudioFile = wave.open(logoAd[detectedLogo] + ".wav", 'rb')
+            
+                for f in range(adVideoFrams):
+                    frameInAd = get_next_frame(adVideoFileBuffer)
+                    write_next_frame(frameInAd, outputVideoRGB)
+                    adAudio = adAudioFile.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * adVideoFrams) 
+                    outputAudioWave.writeframes(adAudio)
+                i += 1
+                adsdetected.append(detectedLogo)
+                continue
 
-            adAudioFile = wave.open(logoAd[detectedLogo] + ".wav", 'rb')
-            adAudio = adAudioFile.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * adVideoFrams) 
-            outputAudioWave.writeframes(adAudio)
-            i += 1
-            continue
+            else :
+                i += 1
+                continue
 
         # add scene content
         write_next_frame(frame, outputVideoRGB)
