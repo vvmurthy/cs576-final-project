@@ -11,7 +11,7 @@ import json
 
 WIDTH = 480
 HEIGHT = 270
-NUM_FRAMES = 30 * 60 * 5
+NUM_FRAMES = 30 * 60 * 5 - 1
 AUDIO_FRAME_RATE = 48000
 VIDEO_FRAME_RATE = 30
 BYTES_PER_FRAME_AUDIO = 2
@@ -23,6 +23,7 @@ logos = {
     "7f91457d3f5cc71141579e0afbe9a053": ["Subway", "Starbucks"],
     "1df718b7af04bd0fe044e35faf758aa1": ["NFLNFL", "McD"],
     "ff50d22b76b36cbb5ec0226069d26ad2":["AE", "HardRock"],
+    "0ab729e54aba8269827629f32b006c87" : ["Subway", "Starbucks"]
 }
 
 logoAd = {
@@ -158,11 +159,18 @@ def generate_final_video(inputVideo, inputAudio, outputVideo, outputAudio, predi
     i = 0
     ad1Added = False
     ad2Added = False
+    ad3Added = False
     detectedLogo = ""
+    adsdetected = []
 
     while i < NUM_FRAMES:
+        print(i)
         ad1 = i >= ads[0][0] and i <= ads[0][1] 
         ad2 = i >= ads[1][0] and i <= ads[1][1] 
+        if len(ads) > 2:
+            ad3 = i >= ads[2][0] and i <= ads[2][1] 
+        else:
+            ad3 = False
 
         frame = get_next_frame(fileBuffer)
 
@@ -171,11 +179,14 @@ def generate_final_video(inputVideo, inputAudio, outputVideo, outputAudio, predi
                 detectedLogo = edit_frame(frame, predictions[hash][i-delta])
         frameAudio = audioFile.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE)
 
-        if ad1 or ad2:
+        if ad1 or ad2 or ad3:
             if ad1Added and ad1:
                 i += 1
                 continue
             if ad2Added and ad2:
+                i += 1
+                continue
+            if ad3Added and ad3:
                 i += 1
                 continue
             if detectedLogo == "":
@@ -186,22 +197,29 @@ def generate_final_video(inputVideo, inputAudio, outputVideo, outputAudio, predi
                 ad1Added = True
             elif ad2:
                 ad2Added = True
+            elif ad3:
+                ad3Added = True
 
-            adVideoFile = open(logoAd[detectedLogo] + ".rgb", 'rb')
-            size = os.path.getsize(logoAd[detectedLogo] + ".rgb") 
-            adVideoFrams = size // (HEIGHT * WIDTH * 3) - 1
-            adVideoFileIO  = io.FileIO(adVideoFile.fileno())
-            adVideoFileBuffer = io.BufferedReader(adVideoFileIO)
-        
-            for f in range(adVideoFrams):
-                frameInAd = get_next_frame(adVideoFileBuffer)
-                write_next_frame(frameInAd, outputVideoRGB)
+            if detectedLogo not in adsdetected :
+                adVideoFile = open(logoAd[detectedLogo] + ".rgb", 'rb')
+                size = os.path.getsize(logoAd[detectedLogo] + ".rgb") 
+                adVideoFrams = size // (HEIGHT * WIDTH * 3) - 1
+                adVideoFileIO  = io.FileIO(adVideoFile.fileno())
+                adVideoFileBuffer = io.BufferedReader(adVideoFileIO)
+                adAudioFile = wave.open(logoAd[detectedLogo] + ".wav", 'rb')
+            
+                for f in range(adVideoFrams):
+                    frameInAd = get_next_frame(adVideoFileBuffer)
+                    write_next_frame(frameInAd, outputVideoRGB)
+                    adAudio = adAudioFile.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * adVideoFrams) 
+                    outputAudioWave.writeframes(adAudio)
+                i += 1
+                adsdetected.append(detectedLogo)
+                continue
 
-            adAudioFile = wave.open(logoAd[detectedLogo] + ".wav", 'rb')
-            adAudio = adAudioFile.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * adVideoFrams) 
-            outputAudioWave.writeframes(adAudio)
-            i += 1
-            continue
+            else :
+                i += 1
+                continue
 
         # add scene content
         write_next_frame(frame, outputVideoRGB)
