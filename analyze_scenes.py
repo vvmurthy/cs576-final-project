@@ -321,11 +321,13 @@ def make_data_file(sourcefile, hashh):
                 compress_copy.append(new_compress)
                 new_compress = (compress_down_scenes[i+1][0], compress_down_scenes[new_i - 1][1], "ad")
             
-            # if the compressed ad is too long but the first cut is shorter, just do a 50-50 split as a heuristic
+            # if the compressed ad is too long but the first cut is shorter, just do a 70-30 split as a heuristic
             elif frames_in_ad > 1000:
-                new_compress = (compress_down_scenes[i][0], compress_down_scenes[i + 1][1], "scene")
+                duration = compress_down_scenes[new_i - 1][1] - compress_down_scenes[i][0]
+                first_length = int(duration * 0.7)
+                new_compress = (compress_down_scenes[i][0], compress_down_scenes[i][0] + first_length, "scene")
                 compress_copy.append(new_compress)
-                new_compress = (compress_down_scenes[i+2][0], compress_down_scenes[new_i - 1][1], "ad")
+                new_compress = (compress_down_scenes[i][0] + first_length, compress_down_scenes[new_i - 1][1], "ad")
             
             # otherwise, add the compression as is
             else:
