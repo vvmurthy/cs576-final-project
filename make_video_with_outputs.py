@@ -1,50 +1,92 @@
-import numpy as np
 import cv2
-import sys 
-import os
+import sys
+import analyze_scenes
+import numpy as np
 import io
-import json
-from analyze_scenes import make_data_file, get_video_hash
 import wave
-import matplotlib
 from time import time
-import matplotlib.pyplot as plt
-from os.path import exists
+from analyze_scenes import make_data_file, get_video_hash
+import os
+import json
 
-# video 1 2400 -> 2900 or so , 5500 -> 6000
-# video 2 -> 0-452, 6000-6452
-# video 3 -> the middle, the end
 WIDTH = 480
 HEIGHT = 270
-NUM_FRAMES = 30 * 60 * 5
-
 AUDIO_FRAME_RATE = 48000
 VIDEO_FRAME_RATE = 30
 BYTES_PER_FRAME_AUDIO = 2
-
-LOOK_BACK_PREDS_FRAME = 2 # how many frames to look back in the event a pred does not exist for 
-# the specified frame
+LOOK_BACK_PREDS_FRAME = 2 
 PREDS_FOLDER = "preds_transformed/"
 THRESHOLD = 0.5
 
-brands = {
-    "7f91457d3f5cc71141579e0afbe9a053": ["subway", "starbucks"],
-    "1df718b7af04bd0fe044e35faf758aa1": ["nflnfl", "mcd"],
-    "ff50d22b76b36cbb5ec0226069d26ad2":["ae", "hardrock"],
+logos = {
+    "7f91457d3f5cc71141579e0afbe9a053": ["Subway", "Starbucks"],
+    "1df718b7af04bd0fe044e35faf758aa1": ["NFLNFL", "McD"],
+    "ff50d22b76b36cbb5ec0226069d26ad2":["AE", "HardRock"],
+    "0ab729e54aba8269827629f32b006c87": ["Subway", "Starbucks"],
 }
 
-brands_to_ads = {
-    "subway" : "dataset-001-001/dataset/Ads/Subway_Ad_15s",
-    "starbucks" : "dataset-001-001/dataset/Ads/Starbucks_Ad_15s",
-    "nflnfl" : "dataset-002-002/dataset2/Ads/nfl_Ad_15s",
-    "mcd" : "dataset-002-002/dataset2/Ads/mcd_Ad_15s",
-    "ae" : "dataset-003-003/dataset3/Ads/ae_Ad_15s",
-    "hardrock" : "dataset-003-003/dataset3/Ads/hrc_Ad_15s",
+logoAd = {
+    "Subway" : "dataset-001-001/dataset/Ads/Subway_Ad_15s",
+    "Starbucks" : "dataset-001-001/dataset/Ads/Starbucks_Ad_15s",
+    "NFLNFL" : "dataset-002-002/dataset2/Ads/nfl_Ad_15s",
+    "McD" : "dataset-002-002/dataset2/Ads/mcd_Ad_15s",
+    "AE" : "dataset-003-003/dataset3/Ads/ae_Ad_15s",
+    "HardRock" : "dataset-003-003/dataset3/Ads/hrc_Ad_15s",
 }
 
-if not os.path.exists(PREDS_FOLDER):
-    print("Predictions folder does not exist")
-    sys.exit(1)
+def getScenes(hash):
+
+    scenes = []
+    ads = []
+
+    sceneFlag = False
+    outputText = hash + ".txt"
+    f = open(outputText, "r")
+
+    lines = []
+    for line in f:
+        lines.append(line)
+
+    for line in lines:
+        if "ad" in line:
+            if sceneFlag == True:
+                end = line.split("-")[0]
+                scenes.append([int(start), int(end)])
+                sceneFlag = False
+            adstart, adend = line.split(":")[0].split("-")
+            ads.append([int(adstart), int(adend)])
+        else:
+            if sceneFlag == False:
+                start = line.split("-")[0]
+                sceneFlag = True
+            if line == lines[-1]:
+                end = line.split(":")[0].split("-")[1]
+                scenes.append([int(start), int(end)])
+
+    return scenes, ads
+
+def get_next_frame(fb):
+    r_frame = fb.read(WIDTH * HEIGHT)
+    g_frame = fb.read(WIDTH * HEIGHT)
+    b_frame = fb.read(WIDTH * HEIGHT)
+    r_a = np.frombuffer(r_frame, dtype=np.uint8).reshape(HEIGHT, WIDTH) 
+    g_a = np.frombuffer(g_frame, dtype=np.uint8).reshape(HEIGHT, WIDTH) 
+    b_a = np.frombuffer(b_frame, dtype=np.uint8).reshape(HEIGHT, WIDTH) 
+
+    full_frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
+    full_frame[:, :, 0] = r_a
+    full_frame[:, :, 1] = g_a
+    full_frame[:, :, 2] = b_a
+    return full_frame
+
+def write_next_frame(frame, outputVideoRGB):
+    r = np.copy(frame[:, :, 0])
+    g = np.copy(frame[:, :, 1])
+    b = np.copy(frame[:, :, 2])
+
+    outputVideoRGB.write(r.tobytes())
+    outputVideoRGB.write(g.tobytes())
+    outputVideoRGB.write(b.tobytes())
 
 def retrieve_formatted(hashh):
     predictions_formatted = {}
@@ -73,7 +115,7 @@ def retrieve_formatted(hashh):
                 frame_preds = []
 
                 for i in range(len(displays)):
-                    if displays[i].lower() not in brands[hash_vid]:
+                    if displays[i] not in logos[hash_vid]:
                         continue
                     if confidences[i] < THRESHOLD:
                         continue
@@ -82,144 +124,119 @@ def retrieve_formatted(hashh):
                 
                 if len(frame_preds) > 0:
                     predictions_formatted[hash_vid][frame_num] = frame_preds
-    return predictions_formatted
+    return predictions_formatted 
 
-def get_next_frame(fb):
-    r_frame = fb.read(WIDTH * HEIGHT)
-    g_frame = fb.read(WIDTH * HEIGHT)
-    b_frame = fb.read(WIDTH * HEIGHT)
-    r_a = np.frombuffer(r_frame, dtype=np.uint8).reshape(HEIGHT, WIDTH) 
-    g_a = np.frombuffer(g_frame, dtype=np.uint8).reshape(HEIGHT, WIDTH) 
-    b_a = np.frombuffer(b_frame, dtype=np.uint8).reshape(HEIGHT, WIDTH) 
-
-    full_frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
-    full_frame[:, :, 0] = r_a
-    full_frame[:, :, 1] = g_a
-    full_frame[:, :, 2] = b_a
-    return full_frame
-
-def overlay_predictions(frame, preds):
-    logo_name = ""
-    for pr in preds:
-        box = pr[1]
-        disp = pr[0]
-        logo_name = disp
+def edit_frame(frame, predictions):
+    for preds in predictions:
+        box = preds[1]
+        display = preds[0]
         x = int(box[0] * WIDTH)
         y = int(box[2] * HEIGHT)
         x1 = int(box[1] * WIDTH)
         y1 = int(box[3] * HEIGHT)
         cv2.rectangle(frame, (x, y), (x1, y1), (0,0,255), 2)
-        display_text = disp.lower() 
-        if disp.lower() == "nflnfl":
-            display_text = "nfl"
-        cv2.putText(frame, display_text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
-    return disp
+        cv2.putText(frame, display, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
+    return display
 
-def make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted, hashh):
-    
-    data_file = hashh + ".txt"
+def generate_final_video(inputVideo, inputAudio, outputVideo, outputAudio, predictions, hash):
 
-    ad_1 = []
-    ad_2 = []
+    scenes, ads = getScenes(hash)
 
-    with open(data_file, 'r') as f:
-        data_lines = f.readlines()
-        for line in data_lines:
-            if "ad" in line:
-                first_num = int(line.split("-")[0])
-                second_num = int(line.split("-")[-1].split(":")[0])
+    videoFile = open(inputVideo, 'rb')
+    size = os.path.getsize(inputVideo) 
+    NUM_FRAMES = size // (HEIGHT * WIDTH * 3) - 1
+    fileIO  = io.FileIO(videoFile.fileno())
+    fileBuffer = io.BufferedReader(fileIO)
 
-                if len(ad_1) == 0:
-                    ad_1 = [first_num, second_num]
-                elif len(ad_2) == 0:
-                    ad_2 = [first_num, second_num]
+    audioFile = wave.open(inputAudio, 'rb')
+    AUDIO_FRAME_RATE = audioFile.getframerate()
 
-    # cut up the video
-    video_file = open(sourcefile, 'rb')
-    fi  = io.FileIO(video_file.fileno())
-    fb = io.BufferedReader(fi)
+    outputVideoRGB = open(outputVideo, 'wb')
 
-    audio_file = wave.open(audiofile, 'rb')
+    outputAudioWave = wave.open(outputAudio, 'wb')
+    outputAudioWave.setnchannels(1) # always want in mono
+    outputAudioWave.setsampwidth(audioFile.getsampwidth())
+    outputAudioWave.setframerate(AUDIO_FRAME_RATE)
 
-    rgb_out = open(out_file, 'wb')
-    
-    audio_out = wave.open(out_audio, 'wb')
-    audio_out.setnchannels(1)
-    audio_out.setsampwidth(2)
-    audio_out.setframerate(AUDIO_FRAME_RATE)
-    prev_logo_name = ""
     i = 0
-    processed_ad_1 = False
-    processed_ad_2 = False
+    ad1Added = False
+    ad2Added = False
+    ad3Added = False
+    detectedLogo = ""
+
     while i < NUM_FRAMES:
-        in_ad_1 = i >= ad_1[0] and i <= ad_1[1] 
-        in_ad_2 = i >= ad_2[0] and i <= ad_2[1] 
-        frame = get_next_frame(fb)
+        ad1 = i >= ads[0][0] and i <= ads[0][1] 
+        ad2 = i >= ads[1][0] and i <= ads[1][1] 
+        ad3 = (len(ads) > 2 and i >= ads[2][0] and i <= ads[2][1])
+
+        frame = get_next_frame(fileBuffer)
+
         for delta in range(0, LOOK_BACK_PREDS_FRAME + 1):
-            if((i - delta) in predictions_formatted[hashh]):
-                prev_logo_name = overlay_predictions(frame, predictions_formatted[hashh][i-delta])
-        frame_audio = audio_file.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE)
-        
-        if in_ad_1 or in_ad_2:
-            if processed_ad_1 and in_ad_1:
+            if((i - delta) in predictions[hash]):
+                detectedLogo = edit_frame(frame, predictions[hash][i-delta])
+        frameAudio = audioFile.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE)
+
+        assert len(frameAudio) == AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * BYTES_PER_FRAME_AUDIO
+
+        if ad1 or ad2 or ad3:
+            if ad1Added and ad1:
                 i += 1
                 continue
-            if processed_ad_2 and in_ad_2:
+            if ad2Added and ad2:
                 i += 1
                 continue
-            if prev_logo_name == "":
+            if ad3Added and ad3:
+                i += 1
+                continue
+            if detectedLogo == "":
                 i += 1
                 continue
             
-            if in_ad_1:
-                processed_ad_1 = True
-            elif in_ad_2:
-                processed_ad_2 = True
+            if ad1:
+                ad1Added = True
+            elif ad2:
+                ad2Added = True
+            elif ad3:
+                ad3Added = True
 
-            # add in the ad content
-            ad_file = brands_to_ads[prev_logo_name.lower()]
-            video_file_ad = open(ad_file + ".rgb", 'rb')
-            size = os.path.getsize(ad_file + ".rgb") 
-            num_frames = size // (HEIGHT * WIDTH * 3) - 1
-            fi_ad  = io.FileIO(video_file_ad.fileno())
-            fb_ad = io.BufferedReader(fi_ad)
+            adVideoFile = open(logoAd[detectedLogo] + ".rgb", 'rb')
+            size = os.path.getsize(logoAd[detectedLogo] + ".rgb") 
+            adVideoFrams = size // (HEIGHT * WIDTH * 3) - 1
+            adVideoFileIO  = io.FileIO(adVideoFile.fileno())
+            adVideoFileBuffer = io.BufferedReader(adVideoFileIO)
         
-            for qr in range(num_frames):
-                frame_ad = get_next_frame(fb_ad)
-                r = np.copy(frame_ad[:, :, 0])
-                g = np.copy(frame_ad[:, :, 1])
-                b = np.copy(frame_ad[:, :, 2])
+            for f in range(adVideoFrams):
+                frameInAd = get_next_frame(adVideoFileBuffer)
+                write_next_frame(frameInAd, outputVideoRGB)
 
-                rgb_out.write(r.tobytes())
-                rgb_out.write(g.tobytes())
-                rgb_out.write(b.tobytes())
-
-            ad_audio = wave.open(ad_file + ".wav", 'rb')
-            ad_all_audio = ad_audio.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * num_frames) 
-            audio_out.writeframes(ad_all_audio)
+            adAudioFile = wave.open(logoAd[detectedLogo] + ".wav", 'rb')
+            adAudio = adAudioFile.readframes(AUDIO_FRAME_RATE // VIDEO_FRAME_RATE * adVideoFrams) 
+            outputAudioWave.writeframes(adAudio)
             i += 1
+            detectedLogo = ""
             continue
 
         # add scene content
-        r = np.copy(frame[:, :, 0])
-        g = np.copy(frame[:, :, 1])
-        b = np.copy(frame[:, :, 2])
-
-        rgb_out.write(r.tobytes())
-        rgb_out.write(g.tobytes())
-        rgb_out.write(b.tobytes())
-        audio_out.writeframes(frame_audio)
+        write_next_frame(frame, outputVideoRGB)
+        outputAudioWave.writeframes(frameAudio)
 
         i += 1
 
-if __name__ == "__main__":
+
+if __name__=="__main__":
     start = time()
-    sourcefile = sys.argv[1]
-    audiofile = sys.argv[2]
-    out_file = sys.argv[3]
-    out_audio = sys.argv[4]
-    hashh = get_video_hash(sourcefile)
-    predictions_formatted = retrieve_formatted(hashh)
-    make_data_file(sourcefile, hashh)
-    make_video(sourcefile, audiofile, out_file, out_audio, predictions_formatted, hashh)
-    print("PROCESSED IN", time() - start, "SECONDS")
+
+    #taking arguments
+    inputVideo = sys.argv[1]
+    inputAudio = sys.argv[2]
+    outputVideo = sys.argv[3]
+    outputAudio = sys.argv[4]
+    
+    hash = get_video_hash(inputVideo)
+    prediction = retrieve_formatted(hash)
+
+    make_data_file(inputVideo, hash)
+
+    generate_final_video(inputVideo, inputAudio, outputVideo, outputAudio, prediction, hash)
+
+    print("Total time :", time()-start, "sec")
