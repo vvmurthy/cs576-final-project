@@ -24,6 +24,14 @@ ad_1_2 = [4400,5500]
 ad_3_1 = [1500, 2500]
 ad_3_2 = [4800, 8500]
 
+
+# ad times approximately
+# 3200 - 3700
+# 5500 - 6100
+# 7300 - 7800
+ad_4_1 = [1900, 3150]
+ad_4_2 = [6000, 7300]
+
 def get_next_frame(fb):
     r_frame = fb.read(WIDTH * HEIGHT)
     g_frame = fb.read(WIDTH * HEIGHT)
@@ -42,7 +50,7 @@ files_in_folder = 0
 index = 0
 lines = []
 
-for num in ["1", "2", "3"]:
+for num in ["1", "2", "3", "4"]:
     BASE = "dataset-00" + num + "-00" + num + "/dataset"
     if num != "1":
         BASE = "dataset-00" + num + "-00" + num + "/dataset" + num 
@@ -65,10 +73,10 @@ for num in ["1", "2", "3"]:
             if files_in_folder >= 10000:
                 index += 1
                 files_in_folder = 0
-                dirr = "temp_images" + str(index) + "/"
+                dirr = "test_dataset" + str(index) + "/"
                 
             
-            dirr = "temp_images" + str(index) + "/"
+            dirr = "test_dataset" + str(index) + "/"
             if not os.path.exists(dirr):
                 os.mkdir(dirr)
             frame = get_next_frame(fb)
@@ -77,8 +85,9 @@ for num in ["1", "2", "3"]:
             in_vid_1 = (num == "1") and ((i >= ad_1_1[0] and i <= ad_1_1[1]) or (i >= ad_1_2[0] and i <= ad_1_2[1]))
             in_vid_2 = (num == "2") and ((i >= ad_2_1[0] and i <= ad_2_1[1]) or (i >= ad_2_2[0] and i <= ad_2_2[1]))
             in_vid_3 = (num == "3") and ((i >= ad_3_1[0] and i <= ad_3_1[1]) or (i >= ad_3_2[0] and i <= ad_3_2[1]))
+            in_vid_4 = (num == "4") and ((i >= ad_4_1[0] and i <= ad_4_1[1]) or (i >= ad_4_2[0] and i <= ad_4_2[1]))
 
-            if in_vid_1 or in_vid_2 or in_vid_3:
+            if in_vid_1 or in_vid_2 or in_vid_3 or in_vid_4:
                 assert cv2.imwrite(dirr + fll, frame)
                 filename = "gs://s2022-cs576-bucket/" + fll
                 lnn = "{\"content\": \"" + filename + "\", \"mimeType\": \"image/png\"}"
